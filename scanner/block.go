@@ -20,7 +20,7 @@ type Block struct {
 }
 
 func NewBlockWorker(client api.WalletClient) *Block {
-	return &Block{cli: client, ticker: time.NewTicker(time.Second * 1)}
+	return &Block{cli: client, ticker: time.NewTicker(time.Second * 5)}
 }
 
 func (b *Block) DoWork(engine *xorm.Engine) error {
@@ -35,7 +35,7 @@ func (b *Block) DoWork(engine *xorm.Engine) error {
 		}
 		b.Pull(maxHeightLocal, maxHeightRemote)
 
-		<-time.NewTicker(time.Second * 5).C
+		<-b.ticker.C
 	}
 
 	return nil
