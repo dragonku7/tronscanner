@@ -28,22 +28,32 @@ func (acc *Accounts) DoWork(engine *xorm.Engine) error {
 		return err
 	}
 	//get Accounts
-	accountChan := make(chan *api.AccountList, 1024)
-	go func() {
-		for {
-			select {
-			case <-acc.ticker.C:
-				accounts, err := acc.cli.ListAccounts(context.Background(), new(api.EmptyMessage))
-				if err != nil {
-					continue
-				}
-				accountChan <- accounts
+	accountChan := make(chan *api.AccountList, 32)
+	go acc.requestChannel(accountChan)
+	//write to db
+	for accountList := range accountChan {
+		//account is exist ?
+		for _, account := range accountList.Accounts {
+			if has, _ := acc.eng.Exist(account); has {
+
+			} else { //insert
+
 			}
 		}
-	}()
 
-	//write to db
-	// for account := range accountChan {
-	// }
+	}
 	return nil
+}
+
+func (acc *Accounts) requestChannel(accChan chan *api.AccountList) {
+	for {
+		select {
+		case <-acc.ticker.C:
+			accounts, err := acc.cli.ListAccounts(context.Background(), new(api.EmptyMessage))
+			if err != nil {
+				continue
+			}
+			accChan <- accounts
+		}
+	}
 }
