@@ -12,7 +12,7 @@ const (
 )
 
 type Scanner struct {
-	Engine      *xorm.Engine
+	Engines     map[string]*xorm.Engine
 	tronClient  api.WalletClient
 	conn        *grpc.ClientConn
 	nodeAddress string
@@ -22,13 +22,18 @@ func NewScanner() (*Scanner, error) {
 	var err error
 
 	var scan Scanner
-	scan.Engine, err = xorm.NewEngine("sqlite3", "./data/scanner.db")
+	scan.Engines = make(map[string]*xorm.Engine)
+	scan.Engines["block"], err = xorm.NewEngine("sqlite3", "./data/block.db")
+	scan.Engines["transaction"], err = xorm.NewEngine("sqlite3", "./data/transaction.db")
+	scan.Engines["accounts"], err = xorm.NewEngine("sqlite3", "./data/accounts.db")
+	scan.Engines["witness"], err = xorm.NewEngine("sqlite3", "./data/witness.db")
+	scan.Engines["nodes"], err = xorm.NewEngine("sqlite3", "./data/nodes.db")
 	if err != nil {
-		return nil, err
-	}
-	if err := scan.Engine.Ping(); err != nil {
 		panic(err)
 	}
+	// if err := scan.Engines.Ping(); err != nil {
+	// panic(err)
+	// }
 	scan.nodeAddress = address
 	return &scan, err
 }
@@ -41,10 +46,25 @@ func (s *Scanner) Start() error {
 	}
 	s.tronClient = api.NewWalletClient(s.conn)
 	//load db data
+	s.loadLastInfo()
 
-	//routine for getting new block
-
-	//routine for getting new transaction
+	//routines to get data
+	for dbname, engine := range s.Engines {
+		var worker BaseWork
+		switch dbname {
+		case "blcok":
+			worker = new(Block)
+		case "transaction":
+			worker = new(Transaction)
+		case "accounts":
+			worker = new(Accounts)
+		case "witness":
+			worker = new(Witness)
+		case "nodes":
+			worker = new(Nodes)
+		}
+		go worker.DoWork(engine)
+	}
 	return nil
 }
 
@@ -52,26 +72,8 @@ func (s *Scanner) loadLastInfo() {
 
 }
 
-//NewblockWriter request for Newblock info & write to db
-func (s *Scanner) NewblockWriter() {
-
-}
-
-//NewTransactionWriter request for transaction info & write to db
-func (s *Scanner) NewTransactionWriter() {
-
-}
-
-func (s *Scanner) AccountsUpdater() {
-
-}
-
-func (s *Scanner) WitnessUpdater() {
-
-}
-
-func (s *Scanner) NodesUpdater() {
-
+type BaseWork interface {
+	DoWork(*xorm.Engine) error
 }
 
 func (s *Scanner) Stop() {
