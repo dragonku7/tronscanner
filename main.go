@@ -2,9 +2,10 @@ package main
 
 import (
 	// "fmt"
+	"os"
+
 	"github.com/taczc64/tronscanner/scanner"
 	"github.com/taczc64/tronscanner/types"
-	"os"
 )
 
 func main() {

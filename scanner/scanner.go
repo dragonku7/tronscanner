@@ -24,7 +24,6 @@ func NewScanner() (*Scanner, error) {
 	var scan Scanner
 	scan.Engines = make(map[string]*xorm.Engine)
 	scan.Engines["block"], err = xorm.NewEngine("sqlite3", "./data/block.db")
-	scan.Engines["transaction"], err = xorm.NewEngine("sqlite3", "./data/transaction.db")
 	scan.Engines["accounts"], err = xorm.NewEngine("sqlite3", "./data/accounts.db")
 	scan.Engines["witness"], err = xorm.NewEngine("sqlite3", "./data/witness.db")
 	scan.Engines["nodes"], err = xorm.NewEngine("sqlite3", "./data/nodes.db")
