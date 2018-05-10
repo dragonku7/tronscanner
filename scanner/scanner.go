@@ -52,16 +52,14 @@ func (s *Scanner) Start() error {
 	for dbname, engine := range s.Engines {
 		var worker BaseWork
 		switch dbname {
-		case "blcok":
-			worker = new(Block)
-		case "transaction":
-			worker = new(Transaction)
+		case "block":
+			worker = NewBlockWorker(s.tronClient)
 		case "accounts":
-			worker = new(Accounts)
+			worker = NewAccountsWorker(s.tronClient)
 		case "witness":
-			worker = new(Witness)
+			worker = NewWitnessWorker(s.tronClient)
 		case "nodes":
-			worker = new(Nodes)
+			worker = NewNodesWorker(s.tronClient)
 		}
 		go worker.DoWork(engine)
 	}
