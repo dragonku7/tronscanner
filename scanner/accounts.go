@@ -1,9 +1,10 @@
 package scanner
 
 import (
+	"time"
+
 	"github.com/go-xorm/xorm"
 	"github.com/tronprotocol/go-client-api/api"
-	"time"
 )
 
 type Accounts struct {
