@@ -1,13 +1,16 @@
 package scanner
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"time"
 
 	"github.com/go-xorm/xorm"
 	"github.com/taczc64/tronscanner/models"
 	"github.com/tronprotocol/go-client-api/api"
+	"github.com/tronprotocol/go-client-api/core"
 )
 
 type Accounts struct {
@@ -34,15 +37,50 @@ func (acc *Accounts) DoWork(engine *xorm.Engine) error {
 	for accountList := range accountChan {
 		//account is exist ?
 		for _, account := range accountList.Accounts {
-			if has, _ := acc.eng.Exist(account); has {
+			// fmt.Println("ready to insert account :", hex.EncodeToString(account.GetAddress()))
+			sqldata := apiAccountToSqlAcc(account)
 
+			if has, _ := acc.eng.Exist(&models.Account{Address: sqldata.Address}); has { //update
+				_, err := acc.eng.Update(sqldata)
+				if err != nil {
+					fmt.Errorf(err.Error())
+					continue
+				}
 			} else { //insert
-
+				_, err := acc.eng.InsertOne(sqldata)
+				if err != nil {
+					fmt.Errorf(err.Error())
+					continue
+				}
 			}
 		}
 
 	}
 	return nil
+}
+
+func apiAccountToSqlAcc(acc *core.Account) *models.Account {
+	sqlacc := new(models.Account)
+	sqlacc.AccountName = hex.EncodeToString(acc.GetAccountName())
+	sqlacc.Address = hex.EncodeToString(acc.GetAddress())
+	sqlacc.Asset = maptostring(acc.GetAsset())
+	sqlacc.Balance = acc.GetBalance()
+	sqlacc.Type = int32(acc.GetType())
+	sqlacc.LatestOperationTime = acc.GetLatestOprationTime()
+	votes := acc.GetVotes()
+	vstr := ""
+	for _, vote := range votes {
+		vstr = vstr + vote.String()
+	}
+	return sqlacc
+}
+
+func maptostring(m map[string]int64) string {
+	bs := new(bytes.Buffer)
+	for key, value := range m {
+		fmt.Fprintf(bs, "%s=\"%d\";", key, value)
+	}
+	return bs.String()
 }
 
 func (acc *Accounts) requestChannel(accChan chan *api.AccountList) {
