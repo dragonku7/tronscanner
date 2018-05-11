@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/go-xorm/xorm"
+	"github.com/gogo/protobuf/proto"
+	google_protobuf "github.com/golang/protobuf/ptypes/any"
 	"github.com/taczc64/tronscanner/types"
 	"github.com/tronprotocol/go-client-api/api"
 	protocol1 "github.com/tronprotocol/go-client-api/core"
@@ -74,7 +76,8 @@ func (b *Block) Init() {
 				timestamp		INT,
 				refblockhash	VARCHAR(64),
 				scrpits			TEXT,
-				date			TEXT,
+				data			TEXT,
+				contracts		TEXT,
 				sigs			TEXT
 			)`); err != nil {
 			panic(err)
@@ -169,6 +172,68 @@ func parseSigs(sigs [][]byte) string {
 	return toJSON(sigStrs)
 }
 
+func parseContracts(contracts []*protocol1.Transaction_Contract) string {
+	type contract struct {
+		Type     string
+		Name     string
+		Provider string
+		Content  string
+	}
+	vals := make([]*contract, len(contracts))
+	for i, v := range contracts {
+		vals[i] = &contract{
+			Type:     v.GetType().String(),
+			Name:     string(v.GetContractName()),
+			Provider: bytesToString(v.GetProvider()),
+			Content:  parseContractContent(v.GetType(), v.GetParameter()),
+		}
+	}
+	return toJSON(vals)
+}
+
+func parseContractContent(t protocol1.Transaction_Contract_ContractType, p *google_protobuf.Any) string {
+	var tx proto.Message
+	switch t {
+	case protocol1.Transaction_Contract_AccountCreateContract:
+		tx = &protocol1.AccountCreateContract{}
+	case protocol1.Transaction_Contract_TransferContract:
+		tx = &protocol1.TransferContract{}
+	case protocol1.Transaction_Contract_TransferAssetContract:
+		tx = &protocol1.TransferAssetContract{}
+	case protocol1.Transaction_Contract_VoteAssetContract:
+		tx = &protocol1.VoteAssetContract{}
+	case protocol1.Transaction_Contract_VoteWitnessContract:
+		tx = &protocol1.VoteWitnessContract{}
+	case protocol1.Transaction_Contract_WitnessCreateContract:
+		tx = &protocol1.WitnessCreateContract{}
+	case protocol1.Transaction_Contract_AssetIssueContract:
+		tx = &protocol1.AssetIssueContract{}
+	case protocol1.Transaction_Contract_DeployContract:
+		tx = &protocol1.DeployContract{}
+	case protocol1.Transaction_Contract_WitnessUpdateContract:
+		tx = &protocol1.WitnessUpdateContract{}
+	case protocol1.Transaction_Contract_ParticipateAssetIssueContract:
+		tx = &protocol1.ParticipateAssetIssueContract{}
+	case protocol1.Transaction_Contract_AccountUpdateContract:
+		tx = &protocol1.AccountUpdateContract{}
+	case protocol1.Transaction_Contract_FreezeBalanceContract:
+		tx = &protocol1.FreezeBalanceContract{}
+	case protocol1.Transaction_Contract_UnfreezeBalanceContract:
+		tx = &protocol1.UnfreezeBalanceContract{}
+	case protocol1.Transaction_Contract_WithdrawBalanceContract:
+		tx = &protocol1.WithdrawBalanceContract{}
+	case protocol1.Transaction_Contract_CustomContract:
+	default:
+		return ""
+	}
+
+	if err := proto.Unmarshal(p.GetValue(), tx); err != nil {
+		panic(err)
+	}
+
+	return toJSON(tx)
+}
+
 func (b *Block) SaveTxs(bl *protocol1.Block) int {
 	txs := bl.GetTransactions()
 	for _, v := range txs {
@@ -178,13 +243,14 @@ func (b *Block) SaveTxs(bl *protocol1.Block) int {
 		refblockhash := v.GetRawData().GetRefBlockHash()
 		scrpits := v.GetRawData().GetScripts()
 		data := v.GetRawData().GetData()
+		contracts := v.GetRawData().GetContract()
 		sigs := v.GetSignature()
 
 		res, err := b.e.Exec(`insert into tx
-		(refblocknumber,expiration,timestamp,refblockhash,scrpits,date,sigs)
+		(refblocknumber,expiration,timestamp,refblockhash,scrpits,data,contracts,sigs)
 		values
-		(?,?,?,?,?,?,?)`,
-			refblocknumber, expiration, timestamp, bytesToString(refblockhash), scrpits, data, parseSigs(sigs))
+		(?,?,?,?,?,?,?,?)`,
+			refblocknumber, expiration, timestamp, bytesToString(refblockhash), scrpits, data, parseContracts(contracts), parseSigs(sigs))
 		if err != nil {
 			panic(err)
 		}
