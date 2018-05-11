@@ -72,7 +72,6 @@ func (b *Block) Init() {
 				refblocknumber	INT,
 				expiration		INT,
 				timestamp		INT,
-				type			VARCHAR(64),
 				refblockhash	VARCHAR(64),
 				scrpits			TEXT,
 				date			TEXT,
@@ -121,9 +120,9 @@ func (b *Block) Pull(start, end int64) {
 			continue
 		}
 
-		fmt.Println("begin to save block", bl.GetBlockHeader().GetRawData().GetNumber())
 		b.SaveBlock(bl)
-		b.SaveTxs(bl)
+		c := b.SaveTxs(bl)
+		fmt.Printf("block %d is saved with %d txs\n", bl.GetBlockHeader().GetRawData().GetNumber(), c)
 	}
 }
 
@@ -170,26 +169,22 @@ func parseSigs(sigs [][]byte) string {
 	return toJSON(sigStrs)
 }
 
-func (b *Block) SaveTxs(bl *protocol1.Block) {
+func (b *Block) SaveTxs(bl *protocol1.Block) int {
 	txs := bl.GetTransactions()
-	if len(txs) > 0 {
-		fmt.Println("begin to save txs", len(txs))
-	}
 	for _, v := range txs {
 		refblocknumber := v.GetRawData().GetRefBlockNum()
 		expiration := v.GetRawData().GetExpiration()
 		timestamp := v.GetRawData().GetTimestamp()
-		typeStr := v.GetRawData().GetType().String()
 		refblockhash := v.GetRawData().GetRefBlockHash()
 		scrpits := v.GetRawData().GetScripts()
 		data := v.GetRawData().GetData()
 		sigs := v.GetSignature()
 
 		res, err := b.e.Exec(`insert into tx
-		(refblocknumber,expiration,timestamp,type,refblockhash,scrpits,date,sigs)
+		(refblocknumber,expiration,timestamp,refblockhash,scrpits,date,sigs)
 		values
-		(?,?,?,?,?,?,?,?)`,
-			refblocknumber, expiration, timestamp, typeStr, bytesToString(refblockhash), scrpits, data, parseSigs(sigs))
+		(?,?,?,?,?,?,?)`,
+			refblocknumber, expiration, timestamp, bytesToString(refblockhash), scrpits, data, parseSigs(sigs))
 		if err != nil {
 			panic(err)
 		}
@@ -201,4 +196,5 @@ func (b *Block) SaveTxs(bl *protocol1.Block) {
 			panic("insert error")
 		}
 	}
+	return len(txs)
 }
