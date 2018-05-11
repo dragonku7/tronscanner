@@ -124,8 +124,7 @@ func (b *Block) Pull(start, end int64) {
 		}
 
 		b.SaveBlock(bl)
-		c := b.SaveTxs(bl)
-		fmt.Printf("block %d is saved with %d txs\n", bl.GetBlockHeader().GetRawData().GetNumber(), c)
+		b.SaveTxs(bl)
 	}
 }
 

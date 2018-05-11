@@ -26,7 +26,7 @@ func NewScanner() (*Scanner, error) {
 	scan.Engines["block"], err = xorm.NewEngine("sqlite3", "./data/block.db")
 	scan.Engines["accounts"], err = xorm.NewEngine("sqlite3", "./data/accounts.db")
 	scan.Engines["witness"], err = xorm.NewEngine("sqlite3", "./data/witness.db")
-	scan.Engines["nodes"], err = xorm.NewEngine("sqlite3", "./data/nodes.db")
+	scan.Engines["nodes"] = scan.Engines["witness"]
 	if err != nil {
 		panic(err)
 	}
