@@ -31,6 +31,7 @@ func (n *Nodes) DoWork(engine *xorm.Engine) error {
 	go n.requestChannel(nodesChan)
 	//write to db
 	for nodesList := range nodesChan {
+		Rlock.Lock()
 		//delete db old data
 		_, err := n.eng.Exec("delete from tron_nodes;")
 		if err != nil {
@@ -48,6 +49,7 @@ func (n *Nodes) DoWork(engine *xorm.Engine) error {
 				continue
 			}
 		}
+		Rlock.Unlock()
 	}
 	return nil
 }

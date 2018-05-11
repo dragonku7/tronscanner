@@ -1,7 +1,7 @@
 package main
 
 import (
-	// "fmt"
+	"fmt"
 	"os"
 
 	"github.com/taczc64/tronscanner/scanner"
@@ -9,11 +9,11 @@ import (
 )
 
 func main() {
-	// defer func() {
-	// 	if r := recover(); r != nil {
-	// 		fmt.Println(r)
-	// 	}
-	// }()
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println(r)
+		}
+	}()
 	exit := make(chan bool)
 	//start data writer
 	scan, err := scanner.NewScanner()

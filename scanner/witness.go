@@ -33,6 +33,7 @@ func (t *Witness) DoWork(engine *xorm.Engine) error {
 	go t.requestChannel(witnessChan)
 	//write to db
 	for witnessList := range witnessChan {
+		Rlock.Lock()
 		//delete db old data
 		_, err := t.eng.Exec("delete from tron_witness;")
 		if err != nil {
@@ -48,6 +49,7 @@ func (t *Witness) DoWork(engine *xorm.Engine) error {
 				continue
 			}
 		}
+		Rlock.Unlock()
 	}
 	return nil
 }

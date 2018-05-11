@@ -5,7 +5,10 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/tronprotocol/go-client-api/api"
 	"google.golang.org/grpc"
+	"sync"
 )
+
+var Rlock *sync.RWMutex
 
 const (
 	address = "47.91.216.69:50051"
@@ -20,6 +23,7 @@ type Scanner struct {
 
 func NewScanner() (*Scanner, error) {
 	var err error
+	Rlock = new(sync.RWMutex)
 
 	var scan Scanner
 	scan.Engines = make(map[string]*xorm.Engine)
