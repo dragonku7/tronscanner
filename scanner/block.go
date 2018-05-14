@@ -72,6 +72,8 @@ func (b *Block) Init() {
 			(
 				id				INTEGER	PRIMARY KEY AUTOINCREMENT,
 				refblocknumber	INT,
+				owneraddr		VARCHAR(64),
+				toaddr			VARCHAR(64),
 				expiration		INT,
 				timestamp		INT,
 				refblockhash	VARCHAR(64),
@@ -80,6 +82,13 @@ func (b *Block) Init() {
 				contracts		TEXT,
 				sigs			TEXT
 			)`); err != nil {
+			panic(err)
+		}
+
+		if _, err := b.e.Exec(`CREATE INDEX IF NOT EXISTS txfrom ON tx (owneraddr);`); err != nil {
+			panic(err)
+		}
+		if _, err := b.e.Exec(`CREATE INDEX IF NOT EXISTS txto ON tx (toaddr);`); err != nil {
 			panic(err)
 		}
 	}
@@ -124,7 +133,8 @@ func (b *Block) Pull(start, end int64) {
 		}
 
 		b.SaveBlock(bl)
-		b.SaveTxs(bl)
+		c := b.SaveTxs(bl)
+		fmt.Printf("saved block %d with %d txs\n", i, c)
 	}
 }
 
@@ -171,7 +181,7 @@ func parseSigs(sigs [][]byte) string {
 	return toJSON(sigStrs)
 }
 
-func parseContracts(contracts []*protocol1.Transaction_Contract) string {
+func parseContracts(contracts []*protocol1.Transaction_Contract) (cc string, from, to *[]byte) {
 	type contract struct {
 		Type     string
 		Name     string
@@ -180,57 +190,92 @@ func parseContracts(contracts []*protocol1.Transaction_Contract) string {
 	}
 	vals := make([]*contract, len(contracts))
 	for i, v := range contracts {
+		var txc string
+		txc, from, to = parseContractContent(v.GetType(), v.GetParameter())
 		vals[i] = &contract{
 			Type:     v.GetType().String(),
 			Name:     string(v.GetContractName()),
 			Provider: bytesToString(v.GetProvider()),
-			Content:  parseContractContent(v.GetType(), v.GetParameter()),
+			Content:  txc,
 		}
 	}
-	return toJSON(vals)
+	return toJSON(vals), from, to
 }
 
-func parseContractContent(t protocol1.Transaction_Contract_ContractType, p *google_protobuf.Any) string {
+func parseContractContent(t protocol1.Transaction_Contract_ContractType, p *google_protobuf.Any) (txc string, from, to *[]byte) {
 	var tx proto.Message
 	switch t {
 	case protocol1.Transaction_Contract_AccountCreateContract:
-		tx = &protocol1.AccountCreateContract{}
+		raw := &protocol1.AccountCreateContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_TransferContract:
-		tx = &protocol1.TransferContract{}
+		raw := &protocol1.TransferContract{}
+		tx = raw
+		from = &raw.OwnerAddress
+		to = &raw.ToAddress
 	case protocol1.Transaction_Contract_TransferAssetContract:
-		tx = &protocol1.TransferAssetContract{}
+		raw := &protocol1.TransferAssetContract{}
+		tx = raw
+		from = &raw.OwnerAddress
+		to = &raw.ToAddress
 	case protocol1.Transaction_Contract_VoteAssetContract:
-		tx = &protocol1.VoteAssetContract{}
+		raw := &protocol1.VoteAssetContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_VoteWitnessContract:
-		tx = &protocol1.VoteWitnessContract{}
+		raw := &protocol1.VoteWitnessContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_WitnessCreateContract:
-		tx = &protocol1.WitnessCreateContract{}
+		raw := &protocol1.WitnessCreateContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_AssetIssueContract:
-		tx = &protocol1.AssetIssueContract{}
+		raw := &protocol1.AssetIssueContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_DeployContract:
-		tx = &protocol1.DeployContract{}
+		raw := &protocol1.DeployContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_WitnessUpdateContract:
-		tx = &protocol1.WitnessUpdateContract{}
+		raw := &protocol1.WitnessUpdateContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_ParticipateAssetIssueContract:
-		tx = &protocol1.ParticipateAssetIssueContract{}
+		raw := &protocol1.ParticipateAssetIssueContract{}
+		tx = raw
+		from = &raw.OwnerAddress
+		to = &raw.ToAddress
 	case protocol1.Transaction_Contract_AccountUpdateContract:
-		tx = &protocol1.AccountUpdateContract{}
+		raw := &protocol1.AccountUpdateContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_FreezeBalanceContract:
-		tx = &protocol1.FreezeBalanceContract{}
+		raw := &protocol1.FreezeBalanceContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_UnfreezeBalanceContract:
-		tx = &protocol1.UnfreezeBalanceContract{}
+		raw := &protocol1.UnfreezeBalanceContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_WithdrawBalanceContract:
-		tx = &protocol1.WithdrawBalanceContract{}
+		raw := &protocol1.WithdrawBalanceContract{}
+		tx = raw
+		from = &raw.OwnerAddress
 	case protocol1.Transaction_Contract_CustomContract:
 	default:
-		return ""
+		return "", nil, nil
 	}
 
 	if err := proto.Unmarshal(p.GetValue(), tx); err != nil {
 		panic(err)
 	}
 
-	return toJSON(tx)
+	txc = toJSON(tx)
+
+	return
 }
 
 func (b *Block) SaveTxs(bl *protocol1.Block) int {
@@ -244,12 +289,24 @@ func (b *Block) SaveTxs(bl *protocol1.Block) int {
 		data := v.GetRawData().GetData()
 		contracts := v.GetRawData().GetContract()
 		sigs := v.GetSignature()
+		cc, from, to := parseContracts(contracts)
+		var fromaddr, toaddr interface{}
+		if from != nil {
+			fromaddr = bytesToString(*from)
+		} else {
+			fromaddr = nil
+		}
+		if to != nil {
+			toaddr = bytesToString(*to)
+		} else {
+			toaddr = nil
+		}
 
 		res, err := b.e.Exec(`insert into tx
-		(refblocknumber,expiration,timestamp,refblockhash,scrpits,data,contracts,sigs)
+		(refblocknumber,owneraddr,toaddr,expiration,timestamp,refblockhash,scrpits,data,contracts,sigs)
 		values
-		(?,?,?,?,?,?,?,?)`,
-			refblocknumber, expiration, timestamp, bytesToString(refblockhash), scrpits, data, parseContracts(contracts), parseSigs(sigs))
+		(?,?,?,?,?,?,?,?,?,?)`,
+			refblocknumber, fromaddr, toaddr, expiration, timestamp, bytesToString(refblockhash), scrpits, data, cc, parseSigs(sigs))
 		if err != nil {
 			panic(err)
 		}
