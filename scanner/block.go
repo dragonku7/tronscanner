@@ -71,6 +71,7 @@ func (b *Block) Init() {
 		if _, err := b.e.Exec(`create table tx
 			(
 				id				INTEGER	PRIMARY KEY AUTOINCREMENT,
+				blocknumber		INT,
 				refblocknumber	INT,
 				owneraddr		VARCHAR(64),
 				toaddr			VARCHAR(64),
@@ -85,6 +86,9 @@ func (b *Block) Init() {
 			panic(err)
 		}
 
+		if _, err := b.e.Exec(`CREATE INDEX IF NOT EXISTS txheight ON tx (blocknumber);`); err != nil {
+			panic(err)
+		}
 		if _, err := b.e.Exec(`CREATE INDEX IF NOT EXISTS txfrom ON tx (owneraddr);`); err != nil {
 			panic(err)
 		}
@@ -280,6 +284,7 @@ func parseContractContent(t protocol1.Transaction_Contract_ContractType, p *goog
 
 func (b *Block) SaveTxs(bl *protocol1.Block) int {
 	txs := bl.GetTransactions()
+	height := bl.GetBlockHeader().GetRawData().GetNumber()
 	for _, v := range txs {
 		refblocknumber := v.GetRawData().GetRefBlockNum()
 		expiration := v.GetRawData().GetExpiration()
@@ -303,10 +308,10 @@ func (b *Block) SaveTxs(bl *protocol1.Block) int {
 		}
 
 		res, err := b.e.Exec(`insert into tx
-		(refblocknumber,owneraddr,toaddr,expiration,timestamp,refblockhash,scrpits,data,contracts,sigs)
+		(blocknumber,refblocknumber,owneraddr,toaddr,expiration,timestamp,refblockhash,scrpits,data,contracts,sigs)
 		values
-		(?,?,?,?,?,?,?,?,?,?)`,
-			refblocknumber, fromaddr, toaddr, expiration, timestamp, bytesToString(refblockhash), scrpits, data, cc, parseSigs(sigs))
+		(?,?,?,?,?,?,?,?,?,?,?)`,
+			height, refblocknumber, fromaddr, toaddr, expiration, timestamp, bytesToString(refblockhash), scrpits, data, cc, parseSigs(sigs))
 		if err != nil {
 			panic(err)
 		}
