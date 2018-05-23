@@ -32,6 +32,10 @@ func (b *Block) DoWork(engine *xorm.Engine) error {
 	for {
 		maxHeightLocal := b.GetMaxHeightLocal()
 		maxHeightRemote := b.GetMaxHeightRemote()
+		if maxHeightLocal < 0 || maxHeightRemote < 0 {
+			time.Sleep(time.Second * 5)
+			continue
+		}
 		if maxHeightRemote > maxHeightLocal {
 			fmt.Printf("start pulling from %d to %d\n", maxHeightLocal, maxHeightRemote)
 		}
@@ -108,11 +112,13 @@ func (b *Block) GetMaxHeightLocal() int64 {
 	sql := "select max(number) as id from block"
 	has, err := b.e.SQL(sql).Get(&maxid)
 	if err != nil {
-		panic(err)
+		fmt.Println(err)
+		return -1
 	}
 
 	if !has {
-		panic("max number not found")
+		fmt.Println("max number not found")
+		return -1
 	}
 
 	return maxid.Id
@@ -121,7 +127,7 @@ func (b *Block) GetMaxHeightLocal() int64 {
 func (b *Block) GetMaxHeightRemote() int64 {
 	now, err := b.cli.GetNowBlock(context.Background(), new(api.EmptyMessage))
 	if err != nil {
-		panic(err)
+		return -1
 	}
 
 	return now.GetBlockHeader().GetRawData().GetNumber()
