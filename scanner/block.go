@@ -32,6 +32,7 @@ func (b *Block) DoWork(engine *xorm.Engine) error {
 	for {
 		maxHeightLocal := b.GetMaxHeightLocal()
 		maxHeightRemote := b.GetMaxHeightRemote()
+		fmt.Println(maxHeightLocal, maxHeightRemote)
 		if maxHeightLocal < 0 || maxHeightRemote < 0 {
 			time.Sleep(time.Second * 5)
 			continue
@@ -127,6 +128,7 @@ func (b *Block) GetMaxHeightLocal() int64 {
 func (b *Block) GetMaxHeightRemote() int64 {
 	now, err := b.cli.GetNowBlock(context.Background(), new(api.EmptyMessage))
 	if err != nil {
+		fmt.Println(err)
 		return -1
 	}
 
